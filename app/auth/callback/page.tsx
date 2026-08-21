@@ -31,7 +31,8 @@ function CallbackHandler() {
         return;
       }
 
-      if (data.redirectType === 'recovery') {
+      const redirectType = (data as { redirectType?: string | null }).redirectType;
+      if (redirectType === 'recovery') {
         router.replace('/auth/reset-password');
         return;
       }

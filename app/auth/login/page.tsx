@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, Suspense } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
@@ -14,6 +14,18 @@ function LoginForm() {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+
+  useEffect(() => {
+    let mounted = true;
+    supabase.auth.getSession().then(({ data }) => {
+      if (!mounted || !data.session) return;
+      const safe = validateOrdinaryPostAuthNext(searchParams.get('next'));
+      router.replace(safe === '/' ? '/dashboard' : safe);
+    });
+    return () => {
+      mounted = false;
+    };
+  }, [router, searchParams]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -137,7 +149,10 @@ export default function LoginPage() {
         </div>
 
         <p className="text-center text-sm text-gray-400 mt-6">
-          Authorised personnel only
+          New here?{' '}
+          <Link href="/auth/signup" className="text-blue-400 hover:text-blue-300 font-medium transition-colors">
+            Create an account
+          </Link>
         </p>
       </div>
     </div>

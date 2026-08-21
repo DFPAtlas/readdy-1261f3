@@ -1,42 +1,68 @@
+'use client';
+
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
+import ProfileAvatar from '@/components/ProfileAvatar';
 
 export default function Header() {
   const pathname = usePathname();
   const router = useRouter();
-  const mounted = useRef(false);
   const [safePathname, setSafePathname] = useState(pathname);
   const [userEmail, setUserEmail] = useState<string | null>(null);
+  const [userName, setUserName] = useState<string | null>(null);
+  const [avatarPath, setAvatarPath] = useState<string | null>(null);
 
   useEffect(() => {
-    mounted.current = true;
-    return () => { mounted.current = false; };
-  }, []);
-
-  useEffect(() => {
-    if (mounted.current) {
-      setSafePathname(pathname);
-    }
+    setSafePathname(pathname);
   }, [pathname]);
 
   useEffect(() => {
-    const getSession = async () => {
-      const { data } = await supabase.auth.getSession();
-      setUserEmail(data.session?.user?.email ?? null);
+    let mounted = true;
+
+    const loadProfile = async (userId: string) => {
+      const { data } = await supabase
+        .from('profiles')
+        .select('full_name, avatar_path')
+        .eq('user_id', userId)
+        .maybeSingle();
+      if (!mounted) return;
+      setUserName(data?.full_name ?? null);
+      setAvatarPath(data?.avatar_path ?? null);
     };
-    getSession();
+
+    const applySession = async () => {
+      const { data } = await supabase.auth.getSession();
+      if (!mounted) return;
+      const sessionUser = data.session?.user;
+      setUserEmail(sessionUser?.email ?? null);
+      if (sessionUser) loadProfile(sessionUser.id);
+    };
+    applySession();
 
     const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUserEmail(session?.user?.email ?? null);
+      if (!mounted) return;
+      const sessionUser = session?.user;
+      setUserEmail(sessionUser?.email ?? null);
+      if (sessionUser) {
+        loadProfile(sessionUser.id);
+      } else {
+        setUserName(null);
+        setAvatarPath(null);
+      }
     });
-    return () => listener.subscription.unsubscribe();
+
+    return () => {
+      mounted = false;
+      listener.subscription.unsubscribe();
+    };
   }, []);
 
   const handleSignOut = async () => {
     await supabase.auth.signOut();
-    router.push('/auth/login');
+    router.replace('/auth/login');
+    router.refresh();
   };
 
   const navItems = [
@@ -53,6 +79,7 @@ export default function Header() {
     { name: 'ID Cards', path: '/id-cards' },
     { name: 'DOB', path: '/dob' },
     { name: 'Form', path: '/form' },
+    { name: 'Audit', path: '/audit' },
   ];
 
   return (
@@ -88,7 +115,10 @@ export default function Header() {
             </button>
             {userEmail ? (
               <div className="flex items-center gap-3">
-                <span className="hidden md:inline text-sm text-gray-300 max-w-[160px] truncate">{userEmail}</span>
+                <div className="hidden md:flex items-center gap-2">
+                  <ProfileAvatar path={avatarPath} name={userName} size="sm" />
+                  <span className="text-sm text-gray-300 max-w-[160px] truncate">{userName || userEmail}</span>
+                </div>
                 <button
                   onClick={handleSignOut}
                   className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium text-gray-300 hover:bg-gray-800 hover:text-white transition-colors whitespace-nowrap cursor-pointer"
